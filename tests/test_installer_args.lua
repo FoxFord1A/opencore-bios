@@ -1,5 +1,5 @@
--- Verify that the OpenOS installer reads its filename from shell.parse(...),
--- not from Lua's standard global `arg` table.
+-- Verify that the OpenOS installer still works when the launcher supplies
+-- no command-line arguments and the user enters the BIOS path interactively.
 local imagePath = os.tmpname()
 local image = assert(io.open(imagePath, "wb"))
 image:write("test BIOS image")
@@ -26,10 +26,19 @@ package.preload.component = function()
 end
 
 local originalRead = io.read
+local originalWrite = io.write
 local originalOpen = io.open
 local originalPrint = print
-io.read = function() return "CANCEL" end
+local readCount = 0
+local requestedImagePath
+io.read = function()
+  readCount = readCount + 1
+  if readCount == 1 then return imagePath end -- requested BIOS filename
+  return "CANCEL" -- decline EEPROM flash
+end
+io.write = function() end
 io.open = function(path, mode)
+  if mode == "rb" then requestedImagePath = path end
   if mode == "wb" and path:match("^opencore%-bios%-backup%-%d+%.lua$") then
     return {write = function() end, close = function() end}
   end
@@ -40,14 +49,18 @@ arg = nil
 
 local chunk, reason = loadfile("install.lua")
 assert(chunk, reason)
-chunk(imagePath)
+chunk() -- simulate OpenOS/launcher that passes no varargs
 
 io.read = originalRead
+io.write = originalWrite
 io.open = originalOpen
 print = originalPrint
 os.remove(imagePath)
 
-assert(parsedArguments and parsedArguments[1] == imagePath,
-  "installer should parse the BIOS path passed by OpenOS")
+assert(parsedArguments and #parsedArguments == 0,
+  "test should exercise the no-arguments launcher case")
+assert(requestedImagePath == imagePath,
+  "installer should prompt for and open the entered BIOS path")
+assert(readCount == 2, "installer should ask for path and then confirmation")
 assert(not writeAttempted, "cancellation must not flash the EEPROM")
-print("OpenOS installer argument test passed.")
+print("OpenOS installer interactive-path test passed.")

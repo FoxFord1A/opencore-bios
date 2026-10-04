@@ -6,12 +6,31 @@ local function fail(message)
   os.exit(1)
 end
 
+print("OpenCore BIOS installer v1.2")
+
 -- OpenOS does not provide Lua's usual global `arg`; scripts receive shell
--- parameters as varargs and should parse them through the shell library.
-local arguments = require("shell").parse(...)
-local sourcePath = arguments[1]
+-- parameters through the shell library. Some launchers do not forward them,
+-- so use a terminal prompt as a reliable fallback.
+local sourcePath
+local parameters = {...}
+local unpackValues = table.unpack or unpack
+local shellOk, shell = pcall(require, "shell")
+local parsedOk, arguments = false, nil
+if shellOk and shell and shell.parse then
+  parsedOk, arguments = pcall(shell.parse, unpackValues(parameters))
+end
+if parsedOk and type(arguments) == "table" then
+  sourcePath = arguments[1]
+end
+if not sourcePath and type(arg) == "table" then
+  sourcePath = arg[1]
+end
 if not sourcePath then
-  fail("usage: lua install.lua /path/to/bios.lua")
+  io.write("Path to bios.lua (for example /tmp/bios.lua): ")
+  sourcePath = io.read("*l")
+end
+if not sourcePath or sourcePath == "" then
+  fail("no BIOS file path provided")
 end
 
 local sourceFile, openReason = io.open(sourcePath, "rb")

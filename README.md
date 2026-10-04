@@ -20,20 +20,22 @@
 
 ```sh
 wget https://raw.githubusercontent.com/FoxFord1A/opencore-bios/main/bios.lua /tmp/bios.lua
-wget https://raw.githubusercontent.com/FoxFord1A/opencore-bios/main/install.lua /tmp/install.lua
-lua /tmp/install.lua /tmp/bios.lua
+wget https://raw.githubusercontent.com/FoxFord1A/opencore-bios/main/install.lua /tmp/install-v1.2.lua
+lua /tmp/install-v1.2.lua
 ```
+
+Проверьте, что первая строка — `OpenCore BIOS installer v1.2`. Когда программа запросит путь к BIOS, введите `/tmp/bios.lua`; затем введите `INSTALL` только для подтверждения прошивки. Установка не зависит от передачи аргументов командной строкой.
 
 ### С локального носителя
 
 1. Скопируйте `bios.lua` и `install.lua` на файловую систему компьютера OpenComputers (например, на дискету или жёсткий диск).
-2. В OpenOS запустите установщик, указав путь к `bios.lua`, например:
+2. Запустите установщик без аргументов:
 
    ```sh
-   lua /mnt/floppy/install.lua /mnt/floppy/bios.lua
+   lua /mnt/floppy/install.lua
    ```
 
-   Путь зависит от того, куда смонтирован носитель. Если `lua` не найден, проверьте, что компьютер действительно загрузил OpenOS.
+   На запрос пути введите, например, `/mnt/floppy/bios.lua`. Путь зависит от того, куда смонтирован носитель. Если `lua` не найден, проверьте, что компьютер действительно загрузил OpenOS.
 3. Установщик создаст `opencore-bios-backup-<время>.lua` в текущей папке. Введите `INSTALL`, только если хотите заменить текущий BIOS.
 4. Перезапустите компьютер. При желании сохраните файл резервной копии отдельно.
 
