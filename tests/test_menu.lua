@@ -3,7 +3,8 @@ local managerCode=f:read("*a");f:close()
 local eepromData="OCB1||5|1|1"
 local filesystems={
   ["FS-1"]={label="System disk",manager=managerCode,init="return 'wrong disk'"},
-  ["FS-2"]={label="Games disk",init="return 'selected disk'"}
+  ["FS-2"]={label="Games disk",init="return 'selected disk'"},
+  ["RAID-1"]={label="RAID volume"}
 }
 local reads={}
 local display={}
@@ -19,7 +20,7 @@ local events={
   {"key_down","KB",0,208},   -- choose second disk
   {"key_down","KB",13,28}    -- boot it
 }
-local kinds={EEPROM="eeprom",["FS-1"]="filesystem",["FS-2"]="filesystem",GPU="gpu",SCREEN="screen"}
+local kinds={EEPROM="eeprom",["FS-1"]="filesystem",["FS-2"]="filesystem",["RAID-1"]="filesystem",GPU="gpu",SCREEN="screen"}
 local function list(kind)
   local result={}
   for address,k in pairs(kinds) do if k==kind then result[#result+1]=address end end
@@ -71,4 +72,5 @@ assert(eepromData=="OCB1|FS-2|6|1|1","device and setup changes should persist")
 assert(display[2] and display[2]:find("OPENCORE BIOS",1,true),"splash logo should render")
 assert(display[5] and display[5]:find("BOOT MENU",1,true),"boot menu should render")
 assert(table.concat(rendered,"\n"):find("SETUP",1,true),"setup menu should render")
+assert(table.concat(rendered,"\n"):find("RAID volume RAID-1 [data/no init]",1,true),"RAID without /init.lua should be listed as a data filesystem")
 print("OpenCore BIOS menu selection test passed.")

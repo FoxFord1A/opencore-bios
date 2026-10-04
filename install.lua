@@ -1,4 +1,4 @@
--- OpenCore BIOS v1.3.1 installer for OpenOS.
+-- OpenCore BIOS v1.3.2 installer for OpenOS.
 local function fail(message)
   io.stderr:write("OpenCore BIOS installer: " .. message .. "\n")
   os.exit(1)
@@ -19,7 +19,7 @@ local function writeLocal(path,data)
   if not f then fail("cannot save backup "..path..": "..tostring(err)) end
   f:write(data);f:close()
 end
-print("OpenCore BIOS installer v1.3.1")
+print("OpenCore BIOS installer v1.3.2")
 local biosPath=prompt("Path to EEPROM BIOS (bios.lua): ")
 local managerPath=prompt("Path to boot menu module (bootmgr.lua): ")
 local biosCode=readLocal(biosPath)
@@ -93,4 +93,4 @@ if not verified or installed~=biosCode then
   if previousModule then writeFS(moduleFile,previousModule) else removeFS(moduleFile) end
   fail("EEPROM verification failed; attempted rollback of EEPROM and menu module")
 end
-print("OpenCore BIOS v1.3.1 installed and verified. Restart to open the boot menu.")
+print("OpenCore BIOS v1.3.2 installed and verified. Restart to open the boot menu.")

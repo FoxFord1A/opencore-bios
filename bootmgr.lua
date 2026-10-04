@@ -1,5 +1,5 @@
 -- OpenCore BIOS for OpenComputers (Lua architecture).
--- Boot manager + setup menu; keep the source under the 4 KiB EEPROM limit.
+-- Stage-2 boot manager and setup UI, loaded from /ocbios.lua on disk.
 local ci=component.invoke
 local pack=table.pack or function(...) return {n=select("#",...),...} end
 local unpackv=table.unpack or unpack
@@ -66,23 +66,24 @@ local function readInit(addr)
   if not fn then return nil,err end
   return fn
 end
-local disks={}
+local disks,bootableCount={},0
 for a in component.list("filesystem") do
   local handle=call(a,"open","/init.lua")
-  if handle then
-    call(a,"close",handle)
-    local label=call(a,"getLabel")
-    if type(label)~="string" or label=="" then label="Disk "..a:sub(1,8) end
-    disks[#disks+1]={addr=a,label=label}
-  end
+  local bootable=handle~=nil
+  if handle then call(a,"close",handle);bootableCount=bootableCount+1 end
+  local label=call(a,"getLabel")
+  if type(label)~="string" or label=="" then label="FS "..a:sub(1,8) end
+  disks[#disks+1]={addr=a,label=label,bootable=bootable}
 end
 local function defaultIndex()
-  for i,d in ipairs(disks) do if d.addr==cfg.addr then return i end end
+  for i,d in ipairs(disks) do if d.addr==cfg.addr and d.bootable then return i end end
+  for i,d in ipairs(disks) do if d.bootable then return i end end
   return 1
 end
 local function start(i)
   local d=disks[i]
   if not d then return false,"No bootable devices found" end
+  if not d.bootable then return false,d.label..": data filesystem; /init.lua is missing" end
   local fn,err=readInit(d.addr)
   if not fn then return false,d.label..": "..tostring(err) end
   cfg.addr=d.addr;save()
@@ -99,12 +100,14 @@ local function key(ev,ch,code)
 end
 local function setup()
   local old={addr=cfg.addr,timeout=cfg.timeout,sound=cfg.sound,logo=cfg.logo}
+  local bootOptions={{addr="",label="Auto / first available"}}
+  for _,d in ipairs(disks) do if d.bootable then bootOptions[#bootOptions+1]=d end end
   local pick=1
-  for i,d in ipairs(disks) do if d.addr==cfg.addr then pick=i+1 end end
+  for i,d in ipairs(bootOptions) do if d.addr==cfg.addr then pick=i end end
   local item=1
   local names={"Default boot device","Boot timeout","Startup sound","Logo","Save and return","Discard changes"}
   while true do
-    local values={pick==1 and "Auto / first available" or disks[pick-1].label,
+    local values={bootOptions[pick].label,
       cfg.timeout==0 and "Off / wait for key" or (cfg.timeout.." seconds"),
       cfg.sound and "On" or "Off",cfg.logo and "On" or "Off"}
     local rows={}
@@ -116,14 +119,14 @@ local function setup()
     elseif k=="down" then item=item%#names+1
     elseif k=="left" or k=="right" then
       local step=k=="right" and 1 or -1
-      if item==1 then pick=(pick-1+step)%(#disks+1)+1
+      if item==1 then pick=(pick-1+step)%#bootOptions+1
       elseif item==2 then cfg.timeout=(cfg.timeout+step)%11
       elseif item==3 then cfg.sound=not cfg.sound
       elseif item==4 then cfg.logo=not cfg.logo end
     elseif k=="enter" then
-      if item==5 then cfg.addr=pick==1 and "" or disks[pick-1].addr;save();return
+      if item==5 then cfg.addr=bootOptions[pick].addr;save();return
       elseif item==6 then cfg=old;return
-      elseif item==1 then pick=(pick-1)%(#disks+1)+1
+      elseif item==1 then pick=pick%#bootOptions+1
       elseif item==2 then cfg.timeout=(cfg.timeout+1)%11
       elseif item==3 then cfg.sound=not cfg.sound
       elseif item==4 then cfg.logo=not cfg.logo end
@@ -136,10 +139,11 @@ local function menu()
   while true do
     local rows={}
     for i,d in ipairs(disks) do
-      rows[i]=(d.addr==cfg.addr and "[default] " or "")..d.label.."  "..d.addr:sub(1,8)
+      local state=d.bootable and " [bootable]" or " [data/no init]"
+      rows[i]=(d.addr==cfg.addr and "[default] " or "")..d.label:sub(1,16).." "..d.addr:sub(1,6)..state
     end
-    if #rows==0 then rows[1]="No filesystem with /init.lua";selected=1 end
-    local countdown=cfg.timeout>0 and ("Auto boot in "..math.max(0,cfg.timeout-elapsed).."s") or "Auto boot disabled"
+    if #rows==0 then rows[1]="No filesystem components detected";selected=1 end
+    local countdown=bootableCount==0 and "No bootable filesystem found" or (cfg.timeout>0 and ("Auto boot in "..math.max(0,cfg.timeout-elapsed).."s") or "Auto boot disabled")
     draw("BOOT MENU  |  OpenCore BIOS",rows,selected,"Up/Down select  Enter boot  S setup  |  "..countdown)
     local ev,_,ch,code=computer.pullSignal(1)
     local k=key(ev,ch,code)
@@ -153,12 +157,12 @@ local function menu()
         if ok then return result end
         draw("BOOT ERROR",{tostring(result),"Press any key to return"},1)
         computer.pullSignal()
-      elseif k=="escape" and #disks>0 then
+      elseif k=="escape" and bootableCount>0 then
         local ok,result=start(defaultIndex())
         if ok then return result end
       end
     else elapsed=elapsed+1 end
-    if cfg.timeout>0 and elapsed>=cfg.timeout and #disks>0 then
+    if cfg.timeout>0 and elapsed>=cfg.timeout and bootableCount>0 then
       local ok,result=start(defaultIndex())
       if ok then return result end
       draw("BOOT ERROR",{tostring(result),"Press any key to retry"},1)

@@ -5,7 +5,8 @@
 ## Возможности
 
 - текстовая заставка и меню загрузки;
-- обнаружение файловых систем с `/init.lua`;
+- отображение всех файловых компонентов, включая RAID-тома без `/init.lua`;
+- пометка загрузочных устройств и data-only томов; запуск разрешён только для тома с `/init.lua`;
 - выбор устройства стрелками и запуск клавишей Enter;
 - клавиша `S` открывает настройки;
 - настройка диска по умолчанию, тайм-аута автозагрузки (0–10 секунд), звукового сигнала и логотипа;
@@ -13,17 +14,17 @@
 - резервные копии старого EEPROM-кода и прежнего `/ocbios.lua`;
 - если модуль меню отсутствует, stage-1 пытается загрузить обычный `/init.lua`.
 
-Это загрузчик, не операционная система. На выбранном диске нужна ОС с `/init.lua`, например OpenOS. Нужны GPU и экран для меню; без них stage-1 пытается запустить обычную ОС.
+Это загрузчик, не операционная система. На загрузочном диске нужна ОС с `/init.lua`, например OpenOS. RAID и другие файловые системы с данными, но без `/init.lua`, теперь тоже показаны в меню как `[data/no init]` — выбрать их для загрузки можно, но они не являются загрузочными, пока на них не установлена ОС. Нужны GPU и экран для меню; без них stage-1 пытается запустить обычную ОС.
 
 ## Установка из OpenOS
 
-Нужна Internet Card для загрузки файлов или их можно перенести на диск вручную. Команды используют закреплённую версию `v1.3.1`:
+Нужна Internet Card для загрузки файлов или их можно перенести на диск вручную. Команды используют закреплённую версию `v1.3.2`:
 
 ```sh
-wget https://raw.githubusercontent.com/FoxFord1A/opencore-bios/v1.3.1/bios.lua /tmp/bios.lua
-wget https://raw.githubusercontent.com/FoxFord1A/opencore-bios/v1.3.1/bootmgr.lua /tmp/bootmgr.lua
-wget https://raw.githubusercontent.com/FoxFord1A/opencore-bios/v1.3.1/install.lua /tmp/install-v1.3.1.lua
-lua /tmp/install-v1.3.1.lua
+wget https://raw.githubusercontent.com/FoxFord1A/opencore-bios/v1.3.2/bios.lua /tmp/bios.lua
+wget https://raw.githubusercontent.com/FoxFord1A/opencore-bios/v1.3.2/bootmgr.lua /tmp/bootmgr.lua
+wget https://raw.githubusercontent.com/FoxFord1A/opencore-bios/v1.3.2/install.lua /tmp/install-v1.3.2.lua
+lua /tmp/install-v1.3.2.lua
 ```
 
 Установщик запросит:
