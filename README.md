@@ -14,7 +14,19 @@
 
 ## Установка
 
-1. Скопируйте `bios.lua` и `install.lua` на файловую систему компьютера OpenComputers (например, на дискету или жёсткий диск). При наличии Internet Card можно скачать файлы через OpenOS, либо перенести их любым удобным способом.
+### Через Internet Card
+
+В OpenOS с подключённой Internet Card можно скачать оба файла прямо с GitHub:
+
+```sh
+wget https://raw.githubusercontent.com/FoxFord1A/opencore-bios/main/bios.lua /tmp/bios.lua
+wget https://raw.githubusercontent.com/FoxFord1A/opencore-bios/main/install.lua /tmp/install.lua
+lua /tmp/install.lua /tmp/bios.lua
+```
+
+### С локального носителя
+
+1. Скопируйте `bios.lua` и `install.lua` на файловую систему компьютера OpenComputers (например, на дискету или жёсткий диск).
 2. В OpenOS запустите установщик, указав путь к `bios.lua`, например:
 
    ```sh
