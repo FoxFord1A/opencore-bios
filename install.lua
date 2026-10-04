@@ -1,88 +1,100 @@
--- OpenCore BIOS installer for OpenOS.
--- Usage: lua install.lua /path/to/bios.lua
-
+-- OpenCore BIOS v1.3 installer for OpenOS.
 local function fail(message)
   io.stderr:write("OpenCore BIOS installer: " .. message .. "\n")
   os.exit(1)
 end
+local function prompt(text)
+  io.write(text)
+  local value=io.read("*l")
+  if not value or value=="" then fail("no path entered") end
+  return value
+end
+local function readLocal(path)
+  local f,err=io.open(path,"rb")
+  if not f then fail("cannot read "..path..": "..tostring(err)) end
+  local s=f:read("*a");f:close();return s
+end
+local function writeLocal(path,data)
+  local f,err=io.open(path,"wb")
+  if not f then fail("cannot save backup "..path..": "..tostring(err)) end
+  f:write(data);f:close()
+end
+print("OpenCore BIOS installer v1.3")
+local biosPath=prompt("Path to EEPROM BIOS (bios.lua): ")
+local managerPath=prompt("Path to boot menu module (bootmgr.lua): ")
+local biosCode=readLocal(biosPath)
+local managerCode=readLocal(managerPath)
+if #biosCode>4096 then fail(string.format("EEPROM BIOS is %d bytes; limit is 4096",#biosCode)) end
 
-print("OpenCore BIOS installer v1.2")
+local component=require("component")
+local eeprom=component.eeprom
+if not eeprom then fail("no EEPROM component found") end
+local readOk,oldEeprom=pcall(eeprom.get)
+if not readOk or type(oldEeprom)~="string" then fail("could not read current EEPROM code: "..tostring(oldEeprom)) end
+local addr
+if computer.getBootAddress then local ok,v=pcall(computer.getBootAddress);if ok then addr=v end end
+if not addr or addr=="" then
+  local ok,v=pcall(eeprom.getData)
+  if ok and type(v)=="string" then addr=v:match("^OCB1|([^|]*)|") or v end
+end
+if not addr or addr=="" then fail("cannot determine the current OpenOS boot filesystem") end
+local ok,fs=pcall(component.proxy,addr)
+if not ok or not fs then fail("cannot access boot filesystem "..tostring(addr)) end
 
--- OpenOS does not provide Lua's usual global `arg`; scripts receive shell
--- parameters through the shell library. Some launchers do not forward them,
--- so use a terminal prompt as a reliable fallback.
-local sourcePath
-local parameters = {...}
-local unpackValues = table.unpack or unpack
-local shellOk, shell = pcall(require, "shell")
-local parsedOk, arguments = false, nil
-if shellOk and shell and shell.parse then
-  parsedOk, arguments = pcall(shell.parse, unpackValues(parameters))
+local function readFS(path)
+  local good,h,why=pcall(fs.open,path,"r")
+  if not good or not h then return nil,why or h end
+  local chunks={}
+  while true do
+    local r,data,err=pcall(fs.read,h,8192)
+    if not r then pcall(fs.close,h);return nil,data end
+    if data then chunks[#chunks+1]=data elseif err then pcall(fs.close,h);return nil,err else break end
+  end
+  pcall(fs.close,h)
+  return table.concat(chunks)
 end
-if parsedOk and type(arguments) == "table" then
-  sourcePath = arguments[1]
+local function writeFS(path,data)
+  local good,h,err=pcall(fs.open,path,"w")
+  if not good or not h then return false,err or h end
+  local wrote,result=pcall(fs.write,h,data)
+  pcall(fs.close,h)
+  if not wrote or result==false then return false,result end
+  return true
 end
-if not sourcePath and type(arg) == "table" then
-  sourcePath = arg[1]
+local function removeFS(path)
+  if fs.remove then pcall(fs.remove,path) end
 end
-if not sourcePath then
-  io.write("Path to bios.lua (for example /tmp/bios.lua): ")
-  sourcePath = io.read("*l")
-end
-if not sourcePath or sourcePath == "" then
-  fail("no BIOS file path provided")
-end
+local moduleFile="/ocbios.lua"
+local previousModule=readFS(moduleFile)
+local stamp=tostring(os.time())
+local backupPath="opencore-bios-backup-"..stamp..".lua"
+local managerBackupPath="opencore-manager-backup-"..stamp..".lua"
+writeLocal(backupPath,oldEeprom)
+if previousModule then writeLocal(managerBackupPath,previousModule) end
+print("EEPROM image: "..#biosCode.."/4096 bytes")
+print("Menu module: "..#managerCode.." bytes -> "..moduleFile.." on "..addr)
+print("EEPROM backup: "..backupPath)
+if previousModule then print("Previous menu backup: "..managerBackupPath) end
+print("This replaces the EEPROM BIOS and the boot-menu module on the current boot disk.")
+io.write("Type INSTALL to continue: ")
+if io.read("*l")~="INSTALL" then print("Cancelled; BIOS and disk were not changed.");return end
 
-local sourceFile, openReason = io.open(sourcePath, "rb")
-if not sourceFile then
-  fail("cannot read " .. tostring(sourcePath) .. ": " .. tostring(openReason))
+local copied,copyReason=writeFS(moduleFile,managerCode)
+if not copied then fail("could not write boot-menu module: "..tostring(copyReason)) end
+local verifyModule=readFS(moduleFile)
+if verifyModule~=managerCode then
+  if previousModule then writeFS(moduleFile,previousModule) else removeFS(moduleFile) end
+  fail("boot-menu verification failed; previous module restored")
 end
-local biosCode = sourceFile:read("*a")
-sourceFile:close()
-
-local EEPROM_LIMIT = 4096
-if #biosCode > EEPROM_LIMIT then
-  fail(string.format("BIOS is %d bytes; EEPROM limit is %d bytes", #biosCode, EEPROM_LIMIT))
+local flashed,flashResult=pcall(eeprom.set,biosCode)
+if not flashed or flashResult==false then
+  if previousModule then writeFS(moduleFile,previousModule) else removeFS(moduleFile) end
+  fail("EEPROM write failed; previous boot-menu module restored: "..tostring(flashResult))
 end
-
-local component = require("component")
-local eeprom = component.eeprom
-if not eeprom then
-  fail("no EEPROM component found")
+local verified,installed=pcall(eeprom.get)
+if not verified or installed~=biosCode then
+  pcall(eeprom.set,oldEeprom)
+  if previousModule then writeFS(moduleFile,previousModule) else removeFS(moduleFile) end
+  fail("EEPROM verification failed; attempted rollback of EEPROM and menu module")
 end
-
-local ok, currentCode = pcall(eeprom.get)
-if not ok or type(currentCode) ~= "string" then
-  fail("could not read the current EEPROM code: " .. tostring(currentCode))
-end
-
-local backupPath = "opencore-bios-backup-" .. tostring(os.time()) .. ".lua"
-local backupFile, backupReason = io.open(backupPath, "wb")
-if not backupFile then
-  fail("could not save EEPROM backup: " .. tostring(backupReason))
-end
-backupFile:write(currentCode)
-backupFile:close()
-
-print("BIOS image: " .. tostring(sourcePath) .. " (" .. #biosCode .. "/" .. EEPROM_LIMIT .. " bytes)")
-print("EEPROM backup saved to: " .. backupPath)
-print("This will replace the computer's current EEPROM boot code.")
-io.write('Type INSTALL to continue: ')
-if io.read("*l") ~= "INSTALL" then
-  print("Cancelled; EEPROM was not changed.")
-  return
-end
-
-local writeOk, writeResult = pcall(eeprom.set, biosCode)
-if not writeOk or writeResult == false then
-  fail("EEPROM write failed: " .. tostring(writeResult))
-end
-
-local verifyOk, installedCode = pcall(eeprom.get)
-if not verifyOk or installedCode ~= biosCode then
-  -- Best-effort rollback if the EEPROM accepted a partial or unexpected write.
-  pcall(eeprom.set, currentCode)
-  fail("verification failed; attempted to restore the previous EEPROM code")
-end
-
-print("OpenCore BIOS installed and verified. Restart the computer to boot it.")
+print("OpenCore BIOS v1.3 installed and verified. Restart to open the boot menu.")

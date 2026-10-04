@@ -1,98 +1,52 @@
--- OpenCore BIOS for OpenComputers (Lua architecture)
--- Boots /init.lua from the configured filesystem, then scans available filesystems.
--- Designed to fit in a standard 4 KiB EEPROM.
-
-local component_invoke = component.invoke
-local pack = table.pack or function(...)
-  return {n = select("#", ...), ...}
+-- OpenCore BIOS stage 1. Keep below the 4096-byte EEPROM limit.
+local ci=component.invoke
+local function call(a,m,...)
+  local ok,x,y=pcall(ci,a,m,...)
+  if ok then return x,y end
+  return nil,tostring(x)
 end
-local unpack_values = table.unpack or unpack
-
-local function invoke(address, method, ...)
-  local result = pack(pcall(component_invoke, address, method, ...))
-  if not result[1] then
-    return nil, tostring(result[2])
-  end
-  return unpack_values(result, 2, result.n)
-end
-
-local eeprom = component.list("eeprom")()
-if not eeprom then
-  error("OpenCore BIOS: EEPROM component not found", 0)
-end
-
--- Keep compatibility with software that expects these BIOS functions.
-computer.getBootAddress = function()
-  return invoke(eeprom, "getData")
-end
-computer.setBootAddress = function(address)
-  return invoke(eeprom, "setData", address)
-end
-
--- Bind the first GPU and screen so boot errors are visible on a display.
-local screen = component.list("screen")()
-local gpu = component.list("gpu")()
-if gpu and screen then
-  invoke(gpu, "bind", screen)
-end
-
-local function loadInit(address)
-  local handle, reason = invoke(address, "open", "/init.lua")
-  if not handle then
-    return nil, reason or "cannot open /init.lua"
-  end
-
-  local chunks = {}
+local ee=component.list("eeprom")()
+if not ee then error("OpenCore BIOS: EEPROM missing",0) end
+local raw=call(ee,"getData") or ""
+local preferred=type(raw)=="string" and (raw:match("^OCB1|([^|]*)|") or raw) or ""
+local function read(a,path)
+  local h,e=call(a,"open",path)
+  if not h then return nil,e end
+  local b={}
   while true do
-    local chunk, readReason = invoke(address, "read", handle, 8192)
-    if chunk then
-      chunks[#chunks + 1] = chunk
-    elseif readReason then
-      invoke(address, "close", handle)
-      return nil, readReason
-    else
-      break
+    local s,r=call(a,"read",h,8192)
+    if s then b[#b+1]=s elseif r then call(a,"close",h);return nil,r else break end
+  end
+  call(a,"close",h)
+  return table.concat(b)
+end
+-- The interactive boot manager lives on the system disk so EEPROM code stays small.
+for a in component.list("filesystem") do
+  local src=read(a,"/ocbios.lua")
+  if src then
+    local fn=load(src,"=ocbios")
+    if fn then return fn() end
+  end
+end
+-- Recovery path: if the menu module is missing, retain normal OpenOS boot.
+local tried={}
+local function boot(a)
+  if not a or a=="" or tried[a] then return false end
+  tried[a]=true
+  local src=read(a,"/init.lua")
+  if src then
+    local fn=load(src,"=init")
+    if fn then
+      if type(raw)=="string" and not raw:match("^OCB1|") then call(ee,"setData",a) end
+      return true,fn()
     end
   end
-  invoke(address, "close", handle)
-
-  local source = table.concat(chunks)
-  local init, compileReason = load(source, "=init")
-  if not init then
-    return nil, compileReason
-  end
-  return init
+  return false
 end
-
-local tried = {}
-local lastReason
-local bootAddress = computer.getBootAddress()
-local init
-
-if bootAddress and bootAddress ~= "" then
-  tried[bootAddress] = true
-  init, lastReason = loadInit(bootAddress)
-  if init then
-    computer.beep(1000, 0.08)
-    return init()
-  end
+local ok,result=boot(preferred)
+if ok then return result end
+for a in component.list("filesystem") do
+  ok,result=boot(a)
+  if ok then return result end
 end
-
-for address in component.list("filesystem") do
-  if not tried[address] then
-    tried[address] = true
-    local candidate, reason = loadInit(address)
-    if candidate then
-      computer.setBootAddress(address)
-      computer.beep(1000, 0.08)
-      return candidate()
-    end
-    lastReason = reason or lastReason
-  end
-end
-
-local message = "OpenCore BIOS: no bootable medium found"
-if lastReason then
-  message = message .. ": " .. tostring(lastReason)
-end
-error(message, 0)
+error("OpenCore BIOS: manager and bootable /init.lua not found",0)

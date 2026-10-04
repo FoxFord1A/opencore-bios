@@ -35,12 +35,17 @@ local function runScenario(bootAddress, filesystems)
           if candidate.address == address then fs = candidate break end
         end
         if method == "open" then
-          if fs and fs.source then return 1 end
+          local path = (...)
+          if fs and path == "/ocbios.lua" and fs.managerSource then return 2 end
+          if fs and path == "/init.lua" and fs.source then return 1 end
           return nil, "init.lua not found"
         elseif method == "read" then
-          if fs and fs.source then
-            local source = fs.source
-            fs.source = nil
+          if fs and (...) == 2 and fs.managerSource then
+            local source = fs.managerSource
+            fs.managerSource = nil
+            return source
+          elseif fs and fs.source then
+            local source = fs.source;fs.source = nil
             return source
           end
           return nil
@@ -83,7 +88,7 @@ assert(ok and result == "after syntax error", "should skip invalid init.lua")
 ok, result = runScenario(nil, {
   {address = "FS-1"}
 })
-assert(not ok and tostring(result):find("no bootable medium found", 1, true),
+assert(not ok and tostring(result):find("manager and bootable /init.lua not found", 1, true),
   "should report when no bootable filesystem exists")
 
 print("All OpenCore BIOS boot tests passed.")
