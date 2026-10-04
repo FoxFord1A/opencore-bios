@@ -17,13 +17,13 @@
 
 ## Установка из OpenOS
 
-Нужна Internet Card для загрузки файлов или их можно перенести на диск вручную. Команды используют закреплённую версию `v1.3`:
+Нужна Internet Card для загрузки файлов или их можно перенести на диск вручную. Команды используют закреплённую версию `v1.3.1`:
 
 ```sh
-wget https://raw.githubusercontent.com/FoxFord1A/opencore-bios/v1.3/bios.lua /tmp/bios.lua
-wget https://raw.githubusercontent.com/FoxFord1A/opencore-bios/v1.3/bootmgr.lua /tmp/bootmgr.lua
-wget https://raw.githubusercontent.com/FoxFord1A/opencore-bios/v1.3/install.lua /tmp/install-v1.3.lua
-lua /tmp/install-v1.3.lua
+wget https://raw.githubusercontent.com/FoxFord1A/opencore-bios/v1.3.1/bios.lua /tmp/bios.lua
+wget https://raw.githubusercontent.com/FoxFord1A/opencore-bios/v1.3.1/bootmgr.lua /tmp/bootmgr.lua
+wget https://raw.githubusercontent.com/FoxFord1A/opencore-bios/v1.3.1/install.lua /tmp/install-v1.3.1.lua
+lua /tmp/install-v1.3.1.lua
 ```
 
 Установщик запросит:

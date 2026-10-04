@@ -1,4 +1,4 @@
--- OpenCore BIOS v1.3 installer for OpenOS.
+-- OpenCore BIOS v1.3.1 installer for OpenOS.
 local function fail(message)
   io.stderr:write("OpenCore BIOS installer: " .. message .. "\n")
   os.exit(1)
@@ -19,7 +19,7 @@ local function writeLocal(path,data)
   if not f then fail("cannot save backup "..path..": "..tostring(err)) end
   f:write(data);f:close()
 end
-print("OpenCore BIOS installer v1.3")
+print("OpenCore BIOS installer v1.3.1")
 local biosPath=prompt("Path to EEPROM BIOS (bios.lua): ")
 local managerPath=prompt("Path to boot menu module (bootmgr.lua): ")
 local biosCode=readLocal(biosPath)
@@ -31,12 +31,8 @@ local eeprom=component.eeprom
 if not eeprom then fail("no EEPROM component found") end
 local readOk,oldEeprom=pcall(eeprom.get)
 if not readOk or type(oldEeprom)~="string" then fail("could not read current EEPROM code: "..tostring(oldEeprom)) end
-local addr
-if computer.getBootAddress then local ok,v=pcall(computer.getBootAddress);if ok then addr=v end end
-if not addr or addr=="" then
-  local ok,v=pcall(eeprom.getData)
-  if ok and type(v)=="string" then addr=v:match("^OCB1|([^|]*)|") or v end
-end
+local dataOk,bootData=pcall(eeprom.getData)
+local addr=dataOk and type(bootData)=="string" and (bootData:match("^OCB1|([^|]*)|") or bootData) or nil
 if not addr or addr=="" then fail("cannot determine the current OpenOS boot filesystem") end
 local ok,fs=pcall(component.proxy,addr)
 if not ok or not fs then fail("cannot access boot filesystem "..tostring(addr)) end
@@ -97,4 +93,4 @@ if not verified or installed~=biosCode then
   if previousModule then writeFS(moduleFile,previousModule) else removeFS(moduleFile) end
   fail("EEPROM verification failed; attempted rollback of EEPROM and menu module")
 end
-print("OpenCore BIOS v1.3 installed and verified. Restart to open the boot menu.")
+print("OpenCore BIOS v1.3.1 installed and verified. Restart to open the boot menu.")

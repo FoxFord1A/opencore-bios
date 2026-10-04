@@ -41,7 +41,7 @@ package.preload.component=function()
     proxy=function(address) assert(address=="FS-TEST");return fs end
   }
 end
-computer={getBootAddress=function() return "FS-TEST" end}
+computer=nil -- OpenOS programs may not expose the BIOS global table.
 local oldRead,oldWrite,oldOpen,oldPrint=io.read,io.write,io.open,print
 local inputs={biosPath,managerPath,"INSTALL"}
 local inputIndex=0
