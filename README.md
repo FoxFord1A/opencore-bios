@@ -19,8 +19,8 @@
 В OpenOS с подключённой Internet Card можно скачать оба файла прямо с GitHub:
 
 ```sh
-wget https://raw.githubusercontent.com/FoxFord1A/opencore-bios/main/bios.lua /tmp/bios.lua
-wget https://raw.githubusercontent.com/FoxFord1A/opencore-bios/main/install.lua /tmp/install-v1.2.lua
+wget https://raw.githubusercontent.com/FoxFord1A/opencore-bios/v1.2/bios.lua /tmp/bios.lua
+wget https://raw.githubusercontent.com/FoxFord1A/opencore-bios/v1.2/install.lua /tmp/install-v1.2.lua
 lua /tmp/install-v1.2.lua
 ```
 
