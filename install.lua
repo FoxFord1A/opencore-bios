@@ -6,7 +6,10 @@ local function fail(message)
   os.exit(1)
 end
 
-local sourcePath = arg and arg[1]
+-- OpenOS does not provide Lua's usual global `arg`; scripts receive shell
+-- parameters as varargs and should parse them through the shell library.
+local arguments = require("shell").parse(...)
+local sourcePath = arguments[1]
 if not sourcePath then
   fail("usage: lua install.lua /path/to/bios.lua")
 end

@@ -57,11 +57,12 @@ wc -c bios.lua
 
 ## Разработка и тесты
 
-`tests/test_boot.lua` запускает BIOS под обычным Lua с имитацией компонентов OpenComputers. Запуск:
+`tests/test_boot.lua` запускает BIOS под обычным Lua с имитацией компонентов OpenComputers; `tests/test_installer_args.lua` проверяет передачу пути через `shell.parse`.
 
 ```sh
 lua tests/test_boot.lua
-luac -p bios.lua install.lua tests/test_boot.lua
+lua tests/test_installer_args.lua
+luac -p bios.lua install.lua tests/test_boot.lua tests/test_installer_args.lua
 ```
 
 ## Совместимость
